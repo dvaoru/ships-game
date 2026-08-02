@@ -1,334 +1,246 @@
 <!DOCTYPE html>
 <html lang="en-us">
+
 <head>
-    <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <link rel="stylesheet" href="./style.css">
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-    <!-- Yandex Games SDK -->
-    <script src="/sdk.js"></script>
-
-    <style>
-        canvas:focus {
-            outline: none;
-        }
-
-        html, body {
-            padding: 0;
-            margin: 0;
-            overflow: hidden;
-            overscroll-behavior: none;
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            -khtml-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-            -webkit-tap-highlight-color: rgba(0,0,0,0);
-            height: 100%;
-        }
-    </style>
-
-    <!-- Additional head modules -->
-
+  <title>YT Game Wrapper WebGL Template</title>
+  <link rel="stylesheet" href="TemplateData/style.css">
+  <script src="https://www.youtube.com/game_api/v1">// Load YT Game API code</script>
 </head>
-<body class="dark">
 
-    <div id="unity-container" class="unity-desktop">
-        <canvas id="unity-canvas" tabindex="-1"></canvas>
+<body>
+  <div id="unity-container" class="unity-desktop">
+    <canvas id="unity-canvas" width=100% height=100% tabindex="-1"></canvas>
+    <div id="unity-loading-bar">
+      <div id="unity-logo"></div>
+      <div id="unity-progress-bar-empty">
+        <div id="unity-progress-bar-full"></div>
+      </div>
     </div>
-    <div id="loading-cover" style="display:none;">
-        <div id="unity-loading-bar">
-            
-            <div id="unity-progress-bar-empty" style="display: none;">
-                <div id="unity-progress-bar-full"></div>
-            </div>
-            <div class="spinner"></div>
-        </div>
-    </div>
+    <div id="unity-warning"> </div>
+  </div>
 
-    <!-- Additional body modules -->
+  <script src="unarchiver.min.js">// used for decompression if zip files are used</script>
+  <script> // Logic for Unity contianer
+    var container = document.querySelector("#unity-container");
+    var canvas = document.querySelector("#unity-canvas");
+    var loadingBar = document.querySelector("#unity-loading-bar");
+    var progressBarFull = document.querySelector("#unity-progress-bar-full");
+    var fullscreenButton = document.querySelector("#unity-fullscreen-button");
+    var fullscreenOverlayButton = document.querySelector("#unity-overlay-fullscreen-button");
+    var quitcanvas = document.querySelector("#quit-canvas");
+    var warningBanner = document.querySelector("#unity-warning");
 
-    <script>
-        const hideFullScreenButton = "";
-        const buildUrl = "Build";
-        const loaderUrl = buildUrl + "/ships-game.loader.js";
-        const config = {
-            dataUrl: buildUrl + "/ships-game.data",
-            frameworkUrl: buildUrl + "/ships-game.framework.js",
-            codeUrl: buildUrl + "/ships-game.wasm",
-        streamingAssetsUrl: "StreamingAssets",
-            companyName: "DefaultCompany",
-            productName: "Little Ships Online",
-            productVersion: "0.1.0"
-        };
+    // For YT it is strongly encouraged that all warnings / errors show in
+    // console and banners should be in game as needed to not confuse users.
+    // 
+    // If needed please uncomment section below to show a temporary message 
+    // banner/ribbon for a few seconds, or a permanent error message on top 
+    // of the canvas if type=='error'.
+    function unityShowBanner(msg, type) {
+      // function updateBannerVisibility() {
+      //   warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+      // }
+      // var div = document.createElement('div');
+      // div.innerHTML = msg;
+      // warningBanner.appendChild(div);
+      // if (type == 'error') div.style = 'background: red; padding: 10px;';
+      // else {
+      //   if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+      //   setTimeout(function() {
+      //     warningBanner.removeChild(div);
+      //     updateBannerVisibility();
+      //   }, 5000);
+      // }
+      // updateBannerVisibility();
+    }
 
-        const container = document.querySelector("#unity-container");
-        const canvas = document.querySelector("#unity-canvas");
-        const loadingCover = document.querySelector("#loading-cover");
-        const progressBarEmpty = document.querySelector("#unity-progress-bar-empty");
-        const progressBarFull = document.querySelector("#unity-progress-bar-full");
-        const spinner = document.querySelector('.spinner');
+    var buildUrl = "Build";
+    var loaderUrl = buildUrl + "/web.loader.js";
+    var config = {
+      dataUrl: buildUrl + "/web.data",
+      frameworkUrl: buildUrl + "/web.framework.js",
+        codeUrl: buildUrl + "/web.wasm",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "DefaultCompany",
+      productName: "Sakura Branch",
+      productVersion: "1.12",
+      showBanner: unityShowBanner,
+    };
 
-        const canFullscreen = (function () {
-            for (const key of [
-                'exitFullscreen',
-                'webkitExitFullscreen',
-                'webkitCancelFullScreen',
-                'mozCancelFullScreen',
-                'msExitFullscreen',
-            ]) {
-                if (key in document) {
-                    return true;
-                }
-            }
-            return false;
-        }());
+    // By default, Unity keeps WebGL canvas render target size matched with
+    // the DOM size of the canvas element (scaled by window.devicePixelRatio)
+    // Set this to false if you want to decouple this synchronization from
+    // happening inside the engine, and you would instead like to size up
+    // the canvas DOM size and WebGL render target sizes yourself.
+    // config.matchWebGLToCanvasSize = false;
 
-        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-            container.className = "unity-mobile";
-            
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      // Mobile device style: fill the whole browser client area with the game canvas:
+
+      var meta = document.createElement('meta');
+      meta.name = 'viewport';
+      meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+      document.getElementsByTagName('head')[0].appendChild(meta);
+      container.className = "unity-mobile";
+      canvas.className = "unity-mobile";
+
+      // To lower canvas resolution on mobile devices to gain some
+      // performance, uncomment the following line:
+      // config.devicePixelRatio = 1;
+
+    } else {
+      // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
+    }
+
+    loadingBar.style.display = "block";
+
+    const subZipStr = '.zip';
+    const subWASMStr = '.wasm';
+    const subJSStr = '.js';
+    const subDataStr = '.data';
+    
+    // loadResources is only used if you need load Zipped files for .wasm, or .data and need 
+    // them to be decompressed. If the file is not zipped we bypass decompression step automatically,
+    // however its best to not trigger this if you dont used compression. 
+    // NOTE: GZip does not work ATM.  If this is needed Unarchiver will need to be updated.
+    loadResources = (callback) => {
+      // Check the Data Url first, followed by the WASM file
+      var dataUrl = config.dataUrl;
+      var shouldDecompress = true;
+      // check if .zip already exists in the URL, if it doesnt check if a .zip file exists
+      if (!dataUrl.includes(subZipStr)) {
+        if (UrlExists(dataUrl + subZipStr)) {
+          dataUrl = dataUrl + subZipStr;
+        } else {
+          shouldDecompress = false;
         }
+      }
 
-        // The background image when loading the game. When building a build, the code changes depending on the project settings.
-        
-        loadingCover.style.display = "";
-
-        let StartUnityInstance;
-        let ygGameInstance = null;
-        let ysdk = null;
-        let initYSDK = false;
-        let initGame = false;
-        let syncInit = false;
-        let isVisibility = true;
-        let isPausedGame = false;
-        const NO_DATA = 'no data';
-
-        document.addEventListener('contextmenu', event => event.preventDefault());
-        document.addEventListener('visibilitychange', () => SetVisibility(!document.hidden));
-        window.addEventListener('blur', () => SetVisibility(false));
-        window.addEventListener('focus', () => SetVisibility(true));
-
-        window.addEventListener('pointerdown', () => {
-            FocusGame();
-            SetVisibility(true);
+      if (shouldDecompress)
+      {
+        var blobTypeData = GetBlobType(dataUrl);
+        DecompressFile(dataUrl, blobTypeData, (file) => {
+          config.dataUrl = file;
+          LoadWASM(callback);
         });
+      }
+      else
+      {
+        LoadWASM(callback);
+      }
+    }
 
-        window.addEventListener('resize', () => FocusGame());
-        document.addEventListener('fullscreenchange', () => FocusGame());
+    // Fetch/Load a file then call our callback 
+    loadZipData = (url, callback) => {
+      fetch(url)
+        .then(response => response.blob())
+        .then(blob => {
+          callback(blob);
+        });
+    }
 
-        const oRequestPointerLock = Element.prototype.requestPointerLock;
-        Element.prototype.requestPointerLock = async function hkRequestPointerLock(...args) {
-            try {
-                (args[0] ||= {}).unadjustedMovement = true;
-                await oRequestPointerLock.apply(this, args);
-            } catch (err) {
-                console.log(err);
+    function LoadWASM(callback)
+    {
+      // After Data file is checked decompress and check WASM file, followed by our callback
+      var codeUrl = config.codeUrl;
+      var shouldDecompress = true;
+
+      // check if .zip already exists in the URL, if it doesnt check if a .zip file exists
+      if (!codeUrl.includes(subZipStr)) {
+        if (UrlExists(codeUrl + subZipStr)) {
+          codeUrl = codeUrl + subZipStr;
+        } else {
+          shouldDecompress = false;
+        }
+      }
+
+      // decompress if using a zip file, otherwise just load regular wasm file
+      if (shouldDecompress) {
+        // Decompress the file based on the type, WASM, JS, etc.
+        // if you need more types please add a const above and modify the type logic below.
+        var blobTypeWASM = GetBlobType(codeUrl);
+        DecompressFile(codeUrl, blobTypeWASM, (file) => {
+          config.codeUrl = file;
+          callback();
+        });
+      } else {
+        callback();
+      }
+    }
+
+    function GetBlobType(urlToCheck) {
+      // if you need more types please add a const above and modify the type logic below.
+      // Note that octet-stream default is for .data files, JS and WASM have their own MIME types.
+      var blobType = 'application/octet-stream';
+      if (urlToCheck.includes(subWASMStr)){
+        blobType = 'application/wasm';
+      } else if (urlToCheck.includes(subJSStr)){
+        blobType = 'text/javascript';
+      } 
+      return blobType;
+    }
+
+    // Check if URL / File exists
+    function UrlExists(urlToCheck)
+    {
+        var httpReq = new XMLHttpRequest();
+        httpReq.open('HEAD', urlToCheck, false);
+        httpReq.send();
+        return httpReq.status!=404;
+    }
+
+    // decompress files and call callback
+    // TODO: test and potentially switch to Compression Streams API
+    function DecompressFile(file, blobMimeType, callback) {
+      let decompressedFile;
+
+      loadZipData(file, (f) => {
+        Unarchiver.open(f).then(async function (archive) {
+          for (let entry of archive.entries) {
+            if (entry.is_file) {
+              let entryRead = await entry.read();
+              let entryData = await entryRead.arrayBuffer();
+              let dataBlob = new Blob([new Uint8Array(entryData)], { type: blobMimeType });
+              decompressedFile = window.URL.createObjectURL(dataBlob);
             }
-        };
+          }
+          callback(decompressedFile);
+        });
+      });
+    }
 
-        function InstallBlurFocusBlocker() {
-            if (!('onblur' in document)) return;
-            if (window.blurFocusHandlersInstalled) return;
+    var unityGameInstance = null;
+    // Setup the Unity section once zip file is downloaded and decompressed
+    function InitUnitySection() {
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = () => {
+        createUnityInstance(canvas, config, (progress) => {
+          progressBarFull.style.width = 100 * progress + "%";
+          }).then((unityInstance) => {
+            unityGameInstance = unityInstance;
+            loadingBar.style.display = "none";
+          }).catch((message) => {
+            console.error(message);
+          });
+      };
 
-            window.addEventListener('blur', function () {
-                let blockerButton = document.createElement('button');
-                blockerButton.style.position = 'fixed';
-                blockerButton.style.top = '0';
-                blockerButton.style.left = '0';
-                blockerButton.style.width = '100%';
-                blockerButton.style.height = '100%';
-                blockerButton.style.zIndex = '9999';
-                blockerButton.style.backgroundColor = 'rgba(0, 0, 0, 0)';
-                blockerButton.style.border = 'none';
-                blockerButton.style.cursor = 'default';
+      document.body.appendChild(script);
+    }
 
-                document.body.appendChild(blockerButton);
+    // Path 1: Use this path if no decompression of your .wasm, .data, .js files are needed
+    InitUnitySection();
 
-                function removeBlocker() {
-                    if (blockerButton && blockerButton.parentNode) {
-                        blockerButton.parentNode.removeChild(blockerButton);
-                    }
-                    window.removeEventListener('focus', removeBlocker);
-                }
-
-                window.addEventListener('focus', removeBlocker);
-            });
-
-            window.blurFocusHandlersInstalled = true;
-        }
-
-        function FocusGame(checkingPauseStatus = true) {
-            if (!canvas) return;
-
-            requestAnimationFrame(() => {
-                if (checkingPauseStatus && isPausedGame) return;
-
-                const active = document.activeElement;
-                if (active && (active.tagName === 'INPUT' ||
-                    active.tagName === 'TEXTAREA' ||
-                    active.isContentEditable
-                )) {
-                    return;
-                }
-
-                canvas.focus({ preventScroll: true });
-            });
-        }
-
-        function SetVisibility(visibility) {
-            if (ysdk !== null && initGame === true && isVisibility !== visibility) {
-                isVisibility = visibility;
-                if (!visibility) {
-                    YG2Instance('SetFocusWindowGame', 'false');
-                }
-                else {
-                    YG2Instance('SetFocusWindowGame', 'true');
-                }
-            }
-        }
-
-        const PauseCallback = () => {
-            isPausedGame = true;
-            YG2Instance('SetPauseGame', 'true');
-        };
-
-        const ResumeCallback = () => {
-            isPausedGame = false;
-            YG2Instance('SetPauseGame', 'false');
-            FocusGame(false);
-        };
-
-        const script = document.createElement("script");
-        script.src = loaderUrl;
-        script.onload = () => {
-            StartUnityInstance = function () {
-                createUnityInstance(canvas, config, (progress) => {
-                    spinner.style.display = "none";
-                    progressBarEmpty.style.display = "";
-                    const adjustedProgress = Math.max(progress, 0.05);
-                    progressBarFull.style.width = `${100 * adjustedProgress}%`;
-                }).then((unityInstance) => {
-                    ygGameInstance = unityInstance;
-                    loadingCover.style.background = "";
-                    loadingCover.style.display = "none";
-                    FocusGame();
-                    // Fill Background [Build Modify]
-                }).catch((message) => {
-                    console.error(message);
-                });
-            };
-            
-            InstallBlurFocusBlocker();
-            InitYSDK();
-            
-            if (IsLocalHost() || syncInit)
-                StartUnityInstance_IfUnloaded();
-        };
-
-        function StartUnityInstance_IfUnloaded() {
-            if (spinner.style.display !== "none")
-                StartUnityInstance();
-        }
-
-        function IsLocalHost() {
-            try {
-                if (window.top !== window) {
-                    return false;
-                }
-
-                const host = window.location.hostname;
-                if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".local")) {
-                    LogStyledMessage("Local Host");
-                    return true;
-                }
-            } 
-            catch (error) {
-                console.error("Error checking the local host:", error);
-                return false;
-            }
-        }
-
-        function YG2Instance(method) {
-            if (ygGameInstance == null)
-                return;
-
-            if (!initGame) {
-                setTimeout(function () {
-                    if (ygGameInstance)
-                        ygGameInstance.SendMessage('YG2Instance', method);
-                }, 100);
-            }
-            else {
-                ygGameInstance.SendMessage('YG2Instance', method);
-            }
-                
-        }
-        function YG2Instance(method, arg) {
-            if (ygGameInstance == null)
-                return;
-
-            if (!initGame) {
-                setTimeout(function () {
-                    ygGameInstance.SendMessage('YG2Instance', method, arg);
-                }, 100);
-            }
-            else {
-                ygGameInstance.SendMessage('YG2Instance', method, arg);
-            }
-        }
-
-        function LogStyledMessage(message, style = 'color: #FFDF73; background-color: #454545') {
-            console.log('%c' + message, style);
-        }
-
-        async function InitYSDK() {
-            try {
-                if (IsLocalHost()) return;
-
-                ysdk = await YaGames.init();
-                ysdk.on('game_api_pause', PauseCallback);
-                ysdk.on('game_api_resume', ResumeCallback);
-
-                // Additional init0 modules
-
-                // Additional init1 modules
-
-                // Additional init2 modules
-
-                // Additional init modules
-
-                initYSDK = true;
-                if (ygGameInstance != null)
-                    ygGameInstance.SendMessage('YG2Instance', 'InitSDKComplete');
-
-                LogStyledMessage('Init YandexSDK Success');
-
-            } catch (e) {
-                console.error('CRASH Initialization SDK: ', e);
-            }
-
-            if (!IsLocalHost() && !syncInit)
-                StartUnityInstance_IfUnloaded();
-        }
-
-        function InitGame() {
-            initGame = true;
-
-            setTimeout(function () {
-                if (isPausedGame == true)
-                    YG2Instance('SetPauseGame', 'true');
-            }, 100);
-
-            // Additional start modules
-        }
-
-        // Additional script modules
-LogStyledMessage('[PluginYG2 v2.0092] [Build: 0] [Platform: YandexGames]');
-
-
-        document.body.appendChild(script);
-    </script>
+    // Path 2: Use this path to Load resources (.wasm, .data) that are Zipped and need to be decompressed
+    // if you dont use compresseion its best to comment out Path 1 and uncomment Path 2.
+    // loadResources(InitUnitySection);  // Uncomment this line to start Unity by loading zipped files
+  </script>
 </body>
 </html>
